@@ -57,11 +57,18 @@
         document.getElementById("overlay-steps").textContent = msg;
       }
 
+      function setDictStatus(state, text) {
+        const dot = document.getElementById("dict-dot");
+        const label = document.getElementById("dict-status-text");
+        dot.className = "dict-dot " + state;
+        label.textContent = text;
+      }
+
       function hideOverlay() {
         const ov = document.getElementById("dict-overlay");
         ov.classList.add("hidden");
         setTimeout(() => ov.style.display = "none", 450);
-        document.getElementById("ready-banner").classList.add("show");
+        setDictStatus("ready", "Dictionary ready — type or paste Japanese text.");
       }
 
       worker.onmessage = function(e) {
@@ -78,6 +85,7 @@
         } else if (e.data.type === 'error') {
           setOverlayProgress(0, "✗ Failed — check internet connection.");
           document.getElementById("overlay-steps").style.color = "#c0392b";
+          setDictStatus("error", "Dictionary failed to load — check your connection.");
           if (pendingTokenize) { pendingTokenize.reject(new Error(e.data.msg)); pendingTokenize = null; }
         }
       };
@@ -85,6 +93,7 @@
       worker.onerror = function(e) {
         setOverlayProgress(0, "✗ Worker error — check internet connection.");
         document.getElementById("overlay-steps").style.color = "#c0392b";
+        setDictStatus("error", "Dictionary failed to load — check your connection.");
       };
 
       function tokenizeAsync(text) {
@@ -111,6 +120,47 @@
         // Kick off loading in the worker
         worker.postMessage({ type: 'init' });
       });
+
+      /* ── Output controls: font size + furigana visibility + copy ── */
+      let fontScale = 100; // percent, relative to base 20px
+      const FONT_BASE_PX = 20;
+      const FONT_MIN = 70, FONT_MAX = 160, FONT_STEP = 10;
+      let furiganaVisible = true;
+
+      function changeFontSize(dir) {
+        fontScale = Math.min(FONT_MAX, Math.max(FONT_MIN, fontScale + dir * FONT_STEP));
+        document.getElementById("furi-out").style.fontSize = (FONT_BASE_PX * fontScale / 100) + "px";
+        document.getElementById("font-size-label").textContent = fontScale + "%";
+      }
+
+      function toggleFuriganaVisibility() {
+        furiganaVisible = !furiganaVisible;
+        const out = document.getElementById("furi-out");
+        out.classList.toggle("hide-furigana", !furiganaVisible);
+        document.getElementById("furigana-toggle-btn").textContent = furiganaVisible ? "振 Furigana: On" : "振 Furigana: Off";
+        document.getElementById("furigana-toggle-btn").classList.toggle("active", !furiganaVisible);
+      }
+
+      async function copyResult() {
+        const out = document.getElementById("furi-out");
+        const text = out.innerText || out.textContent;
+        const btn = document.getElementById("copy-btn");
+        try {
+          await navigator.clipboard.writeText(text);
+          const orig = btn.textContent;
+          btn.textContent = "✓ Copied";
+          setTimeout(() => { btn.textContent = orig; }, 1500);
+        } catch (e) {
+          alert("Could not copy — please select and copy the text manually.");
+        }
+      }
+
+      function showOutputToolbar() {
+        document.getElementById("output-toolbar").classList.add("visible");
+      }
+      function hideOutputToolbar() {
+        document.getElementById("output-toolbar").classList.remove("visible");
+      }
 
       /* ── History ── */
       const MAX_HISTORY = 3;
@@ -165,13 +215,17 @@
         body.classList.toggle("open");
       }
 
+      function toggleHistorySection() {
+        document.getElementById("history-section").classList.toggle("open");
+      }
+
       function reloadItem(i) {
         document.getElementById("furi-input").value = history[i].text;
         document.getElementById("furi-out").innerHTML = history[i].html;
         document.getElementById("furi-status").className = "status-line ok";
         document.getElementById("furi-status").textContent = `✓ ${history[i].count} reading${history[i].count!==1?"s":""} added.`;
-        document.getElementById("dl-btn").classList.add("visible");
-        document.getElementById("tool").scrollIntoView({ behavior: "smooth" });
+        showOutputToolbar();
+        document.querySelector(".tool-card").scrollIntoView({ behavior: "smooth" });
       }
 
       function clearHistory() {
@@ -192,7 +246,7 @@
           "width:794px",          // ≈ A4 at 96dpi
           "background:#ffffff",
           "font-family:'Noto Sans JP','Inter',sans-serif",
-          "color:#0f0e17",
+          "color:#1f2328",
           "padding:0",
           "border-radius:0",
         ].join(";");
@@ -200,53 +254,73 @@
         wrapper.innerHTML = `
           <style>
             .pdf-header {
-              background: #e8e5fb;
-              padding: 12px 28px;
+              background: #1E3A8A;
+              padding: 16px 32px;
               display: flex;
               align-items: center;
               justify-content: space-between;
-              border-bottom: 2px solid #4a3fc0;
             }
             .pdf-header-brand {
               font-family: 'Noto Serif JP', serif;
-              font-size: 15px;
+              font-size: 17px;
               font-weight: 700;
-              color: #4a3fc0;
+              color: #ffffff;
+            }
+            .pdf-header-labs {
+              font-size: 10px;
+              color: #00A8CC;
+              font-weight: 700;
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+              margin-top: 2px;
             }
             .pdf-header-sub {
               font-size: 11px;
-              color: #7b7896;
+              color: rgba(255,255,255,0.75);
               margin-top: 2px;
             }
             .pdf-header-date {
               font-size: 12px;
-              color: #7b7896;
+              color: rgba(255,255,255,0.75);
               text-align: right;
             }
             .pdf-body {
-              padding: 28px 36px 36px;
+              padding: 28px 36px 24px;
               font-family: 'Noto Sans JP', serif;
               font-size: 19px;
               line-height: 3.8;
-              color: #0f0e17;
+              color: #1f2328;
               background: #ffffff;
             }
             ruby { ruby-align: center; }
             rt {
               font-size: 10px;
-              color: #4a3fc0;
+              color: #1E3A8A;
               font-weight: 500;
               line-height: 1;
+            }
+            .pdf-footer {
+              padding: 14px 36px 24px;
+              border-top: 1px solid #e8edfb;
+              font-size: 10px;
+              color: #7a8290;
+              display: flex;
+              justify-content: space-between;
             }
           </style>
           <div class="pdf-header">
             <div>
-              <div class="pdf-header-brand">漢字ブリッジ — Furigana Tool by Akihiro</div>
+              <div class="pdf-header-brand">漢字ブリッジ — Kanji Bridge</div>
+              <div class="pdf-header-labs">AkihiroLabs</div>
               <div class="pdf-header-sub">${label}</div>
             </div>
             <div class="pdf-header-date">${date}</div>
           </div>
           <div class="pdf-body">${html}</div>
+          <div class="pdf-footer">
+            <span>AkihiroLabs · 漢字ブリッジ</span>
+            <span>discord.gg/HSuaC72xMD</span>
+          </div>
         `;
 
         document.body.appendChild(wrapper);
@@ -296,7 +370,7 @@
       async function downloadPDF(elementId, filenameBase) {
         const btn = document.getElementById("dl-btn");
         const origText = btn.innerHTML;
-        btn.innerHTML = "⏳ Generating PDF…";
+        btn.innerHTML = "⏳ Generating…";
         btn.disabled = true;
         try {
           const html = document.getElementById(elementId).innerHTML;
@@ -331,10 +405,9 @@
         const status = document.getElementById("furi-status");
         const out    = document.getElementById("furi-out");
         const loader = document.getElementById("furi-loader");
-        const dlBtn  = document.getElementById("dl-btn");
 
         btn.disabled = true;
-        dlBtn.classList.remove("visible");
+        hideOutputToolbar();
         loader.classList.add("show");
         status.className = "status-line loading";
 
@@ -350,7 +423,7 @@
           out.innerHTML = html || '<span class="furigana-placeholder">No text to display.</span>';
           status.className = "status-line ok";
           status.textContent = `✓ Done — ${count} reading${count !== 1 ? "s" : ""} added.`;
-          dlBtn.classList.add("visible");
+          showOutputToolbar();
           addToHistory(text, html, count);
         } catch(e) {
           status.className = "status-line error";
@@ -364,5 +437,5 @@
 
       function setEx(txt) {
         document.getElementById("furi-input").value = txt;
-        document.getElementById("tool").scrollIntoView({ behavior: "smooth" });
+        document.querySelector(".tool-card").scrollIntoView({ behavior: "smooth" });
       }
