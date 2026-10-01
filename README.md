@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.0-1E3A8A" alt="version 1.1.0">
+  <img src="https://img.shields.io/badge/version-1.2.0-1E3A8A" alt="version 1.2.0">
   <img src="https://img.shields.io/badge/vanilla-JavaScript-00A8CC" alt="Vanilla JS">
   <img src="https://img.shields.io/badge/powered%20by-Kuromoji-1E3A8A" alt="Kuromoji">
 </p>
@@ -66,7 +66,7 @@ This project uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH
 - The version lives in **`js/version.js`** (`APP_VERSION`).
 - To release: bump the version, add an entry to [`CHANGELOG.md`](CHANGELOG.md), then create a GitHub Release tagged `vX.Y.Z`.
 
-Current version: **v1.1.0** — see the [changelog](CHANGELOG.md).
+Current version: **v1.2.0** — see the [changelog](CHANGELOG.md).
 
 ## 💬 Community
 
