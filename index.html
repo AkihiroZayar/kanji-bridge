@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta name="author" content="AkihiroLabs" />
+    <meta name="description" content="Paste any Japanese text and get hiragana furigana above every kanji, instantly in your browser." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Inter:wght@300;400;500;600&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/style.css" />
@@ -26,73 +27,74 @@
     <nav>
       <a class="nav-brand" href="#">
         <span class="logo-jp">漢字ブリッジ</span>
-        <span class="logo-en">Kanji Bridge by Akihiro</span>
+        <span class="logo-en">Kanji Bridge</span>
       </a>
-      <span class="free-badge">✓ 100% Free</span>
+      <span class="nav-labs">AkihiroLabs</span>
     </nav>
 
-    <section class="hero">
-      <div class="hero-badge">✓ Works on any Japanese text</div>
-      <h1>Add furigana<br /><span>to any Japanese text</span></h1>
-      <p>Paste any Japanese text and get hiragana readings shown above each kanji — instantly.</p>
-      <a href="#tool" class="btn-primary">振 Add Furigana</a>
-    </section>
-
-    <div class="features">
-      <div class="feature"><div class="f-icon">振</div><div class="f-title">Furigana</div><div class="f-sub">Readings above every kanji</div></div>
-      <div class="feature"><div class="f-icon">📋</div><div class="f-title">History</div><div class="f-sub">Last 3 paragraphs saved</div></div>
-      <div class="feature"><div class="f-icon">📄</div><div class="f-title">PDF Export</div><div class="f-sub">Download with furigana</div></div>
-      <div class="feature"><div class="f-icon">🆓</div><div class="f-title">Free</div><div class="f-sub">Always free to use</div></div>
+    <div class="intro">
+      <h1>Add furigana to any Japanese text</h1>
+      <p>Paste your text, click once, get hiragana readings above every kanji.</p>
     </div>
 
-    <div id="tool">
-      <div class="section">
-        <!-- Main tool card -->
-        <div class="tool-card">
-          <div class="tool-card-header">
-            <div class="t-icon">振</div>
-            <div>
-              <div class="t-title">ふりがな生成</div>
-              <div class="t-sub">Furigana Generator · powered by Kuromoji</div>
+    <div class="section">
+      <!-- Main tool card -->
+      <div class="tool-card">
+        <div class="tool-card-body">
+          <div class="dict-status">
+            <span class="dict-dot loading" id="dict-dot"></span>
+            <span id="dict-status-text">Loading dictionary…</span>
+          </div>
+          <div class="chips">
+            <span class="chips-label">Try an example →</span>
+            <button class="chip" onclick="setEx('サーバーの設定ファイルを変更する前に、必ずバックアップを取ること。')">サーバー設定</button>
+            <button class="chip" onclick="setEx('クラウド環境でのコンテナ技術は、現代のソフトウェア開発に欠かせない。')">クラウド技術</button>
+            <button class="chip" onclick="setEx('データベースの最適化により、クエリの実行速度が大幅に向上した。')">DB最適化</button>
+            <button class="chip" onclick="setEx('機械学習モデルの訓練には大量の計算資源が必要です。')">機械学習</button>
+            <button class="chip" onclick="setEx('大学生活は知識を深めるだけでなく、自分自身を成長させるための重要な時間である。')">大学生活</button>
+            <button class="chip" onclick="setEx('脆弱性が発見されたため、緊急のセキュリティパッチを適用する必要がある。')">セキュリティ</button>
+          </div>
+          <div class="input-group">
+            <textarea id="furi-input" placeholder="日本語のテキストをここに入力してください…&#10;(Paste any Japanese text here)"></textarea>
+            <button class="run-btn" id="furi-btn" onclick="doFurigana()">振 Add Furigana</button>
+          </div>
+          <div class="loader-wrap" id="furi-loader"><div class="loader-bar"></div></div>
+          <p class="status-line" id="furi-status">Enter text above and click "Add Furigana".</p>
+
+          <div class="output-toolbar" id="output-toolbar">
+            <div class="toolbar-group">
+              <button class="tb-btn" id="furigana-toggle-btn" onclick="toggleFuriganaVisibility()">振 Furigana: On</button>
+            </div>
+            <div class="toolbar-group">
+              <button class="tb-btn" onclick="changeFontSize(-1)">A−</button>
+              <span class="font-size-label" id="font-size-label">100%</span>
+              <button class="tb-btn" onclick="changeFontSize(1)">A+</button>
+            </div>
+            <div class="toolbar-group">
+              <button class="tb-btn" id="copy-btn" onclick="copyResult()">📋 Copy</button>
+              <button class="tb-btn" id="dl-btn" onclick="downloadPDF('furi-out', 'furigana')">📄 PDF</button>
             </div>
           </div>
-          <div class="tool-card-body">
-            <div id="ready-banner">✓ Dictionary ready — type or paste Japanese text and click Add Furigana!</div>
-            <div class="chips">
-              <span style="font-size:12px;color:var(--ink-soft);align-self:center;margin-right:4px;">Try an example →</span>
-              <button class="chip" onclick="setEx('サーバーの設定ファイルを変更する前に、必ずバックアップを取ること。')">サーバー設定</button>
-              <button class="chip" onclick="setEx('クラウド環境でのコンテナ技術は、現代のソフトウェア開発に欠かせない。')">クラウド技術</button>
-              <button class="chip" onclick="setEx('データベースの最適化により、クエリの実行速度が大幅に向上した。')">DB最適化</button>
-              <button class="chip" onclick="setEx('機械学習モデルの訓練には大量の計算資源が必要です。')">機械学習</button>
-              <button class="chip" onclick="setEx('大学生活は知識を深めるだけでなく、自分自身を成長させるための重要な時間である。')">大学生活</button>
-              <button class="chip" onclick="setEx('脆弱性が発見されたため、緊急のセキュリティパッチを適用する必要がある。')">セキュリティ</button>
-            </div>
-            <div class="input-group">
-              <textarea id="furi-input" placeholder="日本語のテキストをここに入力してください…&#10;(Paste any Japanese text here)"></textarea>
-              <button class="run-btn" id="furi-btn" onclick="doFurigana()">振 Add Furigana</button>
-            </div>
-            <div class="loader-wrap" id="furi-loader"><div class="loader-bar"></div></div>
-            <p class="status-line" id="furi-status">Enter text above and click "Add Furigana".</p>
-            <div class="result-wrap">
-              <div class="furigana-result" id="furi-out">
-                <span class="furigana-placeholder">Your text with furigana readings will appear here…</span>
-              </div>
-              <button class="download-btn" id="dl-btn" onclick="downloadPDF('furi-out', 'furigana')">
-                📄 Download as PDF
-              </button>
+
+          <div class="result-wrap">
+            <div class="furigana-result" id="furi-out">
+              <span class="furigana-placeholder">Your text with furigana readings will appear here…</span>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Recent history -->
-        <div class="history-section" id="history-section">
-          <div class="history-header">
-            <div class="history-title">
-              🕐 Recent paragraphs
-              <span class="h-badge" id="history-count">0</span>
-            </div>
-            <button class="clear-btn" onclick="clearHistory()">Clear all</button>
+      <!-- Recent history (collapsed) -->
+      <div class="history-section" id="history-section">
+        <div class="history-toggle" onclick="toggleHistorySection()">
+          <div class="history-title">
+            🕐 Recent paragraphs
+            <span class="h-badge" id="history-count">0</span>
           </div>
+          <span class="history-chevron">▾</span>
+        </div>
+        <div class="history-panel">
+          <button class="clear-btn" onclick="event.stopPropagation(); clearHistory()">Clear all</button>
           <div class="history-list" id="history-list">
             <div class="history-empty">Your last 3 processed paragraphs will appear here.</div>
           </div>
@@ -100,9 +102,20 @@
       </div>
     </div>
 
+    <div class="discord-banner">
+      <div class="discord-inner">
+        <div class="discord-text">
+          Join the AkihiroLabs community
+          <span>Updates, feedback and new tools from AkihiroLabs</span>
+        </div>
+        <a class="discord-btn" href="https://discord.gg/HSuaC72xMD" target="_blank" rel="noopener">Join our Discord</a>
+      </div>
+    </div>
+
     <footer>
-      <div class="foot-brand">アキヒロの漢字ブリッジ</div>
-      <p>© 2026 Akihiro · Furigana by Kuromoji · 100% Free</p>
+      <div class="foot-brand">漢字ブリッジ</div>
+      <div class="foot-labs">AkihiroLabs</div>
+      <p>© 2026 AkihiroLabs · Furigana by Kuromoji · 100% Free</p>
       <p>A personal project by Akihiro to help Japanese learners and IT professionals read kanji. Internet is needed the first time to load the Kuromoji dictionary, then it works instantly.</p>
       <p>⚠️ Kuromoji may occasionally mis-read ambiguous kanji — double-check if something looks wrong!</p>
     </footer>
