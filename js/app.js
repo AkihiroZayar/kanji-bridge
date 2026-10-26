@@ -2,7 +2,50 @@
  * AkihiroLabs — Kanji Bridge — app logic
  * https://github.com/AkihiroZayar/kanji-bridge
  */
-      /* ── Web Worker: runs kuromoji off the main thread so browser never freezes ── */
+(function () {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+
+  /* ── Language ─────────────────────────────────────────────── */
+  const LANGS = ["en", "ja", "my"];
+  let lang = "en";
+  try {
+    const saved = localStorage.getItem("kb-lang");
+    if (LANGS.includes(saved)) lang = saved;
+    else {
+      const nav = (navigator.language || "en").slice(0, 2);
+      if (nav === "ja") lang = "ja"; else if (nav === "my") lang = "my";
+    }
+  } catch (e) { /* storage blocked — keep default */ }
+
+  function t(key, vars) {
+    let s = (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+    if (vars) Object.keys(vars).forEach(k => { s = s.replace("{" + k + "}", vars[k]); });
+    return s;
+  }
+
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.body.classList.toggle("lang-my", lang === "my");
+    document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll("[data-lang]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    $("furi-input").placeholder = t("placeholder");
+    updateCharCount();
+    updateDictUI();
+    updateFuriToggle();
+    updateResultCount();
+    renderHistory();
+    if (lastStatusKey) setStatus(lastStatusState, lastStatusKey, lastStatusExtra);
+  }
+
+  function setLang(l) {
+    lang = l;
+    try { localStorage.setItem("kb-lang", l); } catch (e) {}
+    applyLang();
+  }
+
+  /* ── Web Worker: runs kuromoji off the main thread so browser never freezes ── */
       const WORKER_CODE = `
         importScripts('https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js');
         const DICT = 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict';
@@ -43,200 +86,209 @@
         };
       `;
 
-      const workerBlob = new Blob([WORKER_CODE], { type: 'application/javascript' });
-      const worker = new Worker(URL.createObjectURL(workerBlob));
+  const workerBlob = new Blob([WORKER_CODE], { type: "application/javascript" });
+  const worker = new Worker(URL.createObjectURL(workerBlob));
 
-      let workerReady = false;
-      let workerReadyResolve = null;
-      const workerReadyPromise = new Promise(res => { workerReadyResolve = res; });
+  let dictState = "loading"; // loading | ready | error
+  let dictPct = 3;
+  let workerReadyResolve = null;
+  const workerReadyPromise = new Promise(res => { workerReadyResolve = res; });
+  let pendingTokenize = null; // { resolve, reject }
 
-      let pendingTokenize = null; // { resolve, reject }
+  function updateDictUI() {
+    const chip = $("dict-chip");
+    chip.className = "dict-chip " + dictState;
+    $("dict-chip-text").textContent =
+      dictState === "ready" ? t("dictReady") :
+      dictState === "error" ? t("dictError") :
+      t("dictLoading", { p: dictPct });
+    $("dict-bar").style.width = dictPct + "%";
+    $("dict-progress").classList.toggle("done", dictState === "ready");
+  }
 
-      function setOverlayProgress(pct, msg) {
-        document.getElementById("overlay-bar").style.width = pct + "%";
-        document.getElementById("overlay-steps").textContent = msg;
-      }
+  worker.onmessage = function (e) {
+    if (e.data.type === "ready") {
+      dictState = "ready"; dictPct = 100;
+      updateDictUI();
+      workerReadyResolve();
+    } else if (e.data.type === "result") {
+      if (pendingTokenize) { pendingTokenize.resolve({ html: e.data.html, count: e.data.count }); pendingTokenize = null; }
+    } else if (e.data.type === "error") {
+      if (dictState !== "ready") { dictState = "error"; updateDictUI(); }
+      if (pendingTokenize) { pendingTokenize.reject(new Error(e.data.msg)); pendingTokenize = null; }
+    }
+  };
+  worker.onerror = function () { dictState = "error"; updateDictUI(); };
 
-      function setDictStatus(state, text) {
-        const dot = document.getElementById("dict-dot");
-        const label = document.getElementById("dict-status-text");
-        dot.className = "dict-dot " + state;
-        label.textContent = text;
-      }
+  function tokenizeAsync(text) {
+    return new Promise((resolve, reject) => {
+      pendingTokenize = { resolve, reject };
+      worker.postMessage({ type: "tokenize", text });
+    });
+  }
 
-      function hideOverlay() {
-        const ov = document.getElementById("dict-overlay");
-        ov.classList.add("hidden");
-        setTimeout(() => ov.style.display = "none", 450);
-        setDictStatus("ready", "Dictionary ready — type or paste Japanese text.");
-      }
+  // Cosmetic progress (kuromoji gives no real progress events)
+  [[15, 400], [30, 1200], [50, 2800], [70, 4500], [85, 6500], [92, 9000]].forEach(([pct, delay]) => {
+    setTimeout(() => { if (dictState === "loading") { dictPct = pct; updateDictUI(); } }, delay);
+  });
 
-      worker.onmessage = function(e) {
-        if (e.data.type === 'ready') {
-          workerReady = true;
-          setOverlayProgress(100, "✓ Ready!");
-          setTimeout(hideOverlay, 400);
-          if (workerReadyResolve) workerReadyResolve();
-        } else if (e.data.type === 'result') {
-          if (pendingTokenize) {
-            pendingTokenize.resolve({ html: e.data.html, count: e.data.count });
-            pendingTokenize = null;
-          }
-        } else if (e.data.type === 'error') {
-          setOverlayProgress(0, "✗ Failed — check internet connection.");
-          document.getElementById("overlay-steps").style.color = "#c0392b";
-          setDictStatus("error", "Dictionary failed to load — check your connection.");
-          if (pendingTokenize) { pendingTokenize.reject(new Error(e.data.msg)); pendingTokenize = null; }
-        }
-      };
+  /* ── Input ────────────────────────────────────────────────── */
+  function updateCharCount() {
+    const n = $("furi-input").value.length;
+    $("char-count").textContent = t("chars", { n });
+    $("clear-input").hidden = n === 0;
+  }
 
-      worker.onerror = function(e) {
-        setOverlayProgress(0, "✗ Worker error — check internet connection.");
-        document.getElementById("overlay-steps").style.color = "#c0392b";
-        setDictStatus("error", "Dictionary failed to load — check your connection.");
-      };
+  function renderChips() {
+    $("chips").innerHTML = EXAMPLES.map((ex, i) =>
+      `<button type="button" class="chip" data-ex="${i}"><span class="lvl lvl-${ex.level.toLowerCase()}">${ex.level}</span>${ex.name}</button>`
+    ).join("");
+  }
 
-      function tokenizeAsync(text) {
-        return new Promise((resolve, reject) => {
-          pendingTokenize = { resolve, reject };
-          worker.postMessage({ type: 'tokenize', text });
-        });
-      }
+  function setEx(i) {
+    const input = $("furi-input");
+    input.value = EXAMPLES[i].text;
+    updateCharCount();
+    clearStatus();
+    input.focus();
+  }
 
-      // Animated progress steps (cosmetic — kuromoji gives no real progress events)
-      const progressSteps = [
-        [15,  400,  "Connecting to dictionary server…"],
-        [30, 1200,  "Downloading dictionary files…"],
-        [50, 2800,  "Loading grammar data…"],
-        [70, 4500,  "Loading vocabulary index…"],
-        [85, 6500,  "Almost ready…"],
-      ];
+  /* ── Status line ──────────────────────────────────────────── */
+  let lastStatusKey = null, lastStatusState = "", lastStatusExtra = "";
+  function setStatus(state, key, extra) {
+    lastStatusKey = key; lastStatusState = state; lastStatusExtra = extra || "";
+    const el = $("furi-status");
+    el.className = "status-line show " + state;
+    el.textContent = t(key) + (extra || "");
+  }
+  function clearStatus() {
+    lastStatusKey = null;
+    $("furi-status").className = "status-line";
+    $("furi-status").textContent = "";
+  }
 
-      window.addEventListener("DOMContentLoaded", () => {
-        setOverlayProgress(5, "Starting…");
-        progressSteps.forEach(([pct, delay, msg]) => {
-          setTimeout(() => { if (!workerReady) setOverlayProgress(pct, msg); }, delay);
-        });
-        // Kick off loading in the worker
-        worker.postMessage({ type: 'init' });
-      });
+  /* ── Result controls: font size + furigana visibility + copy ── */
+  let fontScale = 100; // percent, relative to base size
+  const FONT_MIN = 70, FONT_MAX = 170, FONT_STEP = 10;
+  let furiganaVisible = true;
+  let resultCount = 0;
 
-      /* ── Output controls: font size + furigana visibility + copy ── */
-      let fontScale = 100; // percent, relative to base 20px
-      const FONT_BASE_PX = 20;
-      const FONT_MIN = 70, FONT_MAX = 160, FONT_STEP = 10;
-      let furiganaVisible = true;
+  function changeFontSize(dir) {
+    fontScale = Math.min(FONT_MAX, Math.max(FONT_MIN, fontScale + dir * FONT_STEP));
+    $("furi-out").style.fontSize = (fontScale / 100) + "em";
+    $("font-size-label").textContent = fontScale + "%";
+  }
 
-      function changeFontSize(dir) {
-        fontScale = Math.min(FONT_MAX, Math.max(FONT_MIN, fontScale + dir * FONT_STEP));
-        document.getElementById("furi-out").style.fontSize = (FONT_BASE_PX * fontScale / 100) + "px";
-        document.getElementById("font-size-label").textContent = fontScale + "%";
-      }
+  function updateFuriToggle() {
+    const btn = $("furigana-toggle-btn");
+    btn.setAttribute("aria-pressed", String(furiganaVisible));
+    btn.querySelector("use").setAttribute("href", furiganaVisible ? "#i-eye-off" : "#i-eye");
+    btn.querySelector("span").textContent = t(furiganaVisible ? "hideFuri" : "showFuri");
+    $("furi-out").classList.toggle("hide-furigana", !furiganaVisible);
+  }
 
-      function toggleFuriganaVisibility() {
-        furiganaVisible = !furiganaVisible;
-        const out = document.getElementById("furi-out");
-        out.classList.toggle("hide-furigana", !furiganaVisible);
-        document.getElementById("furigana-toggle-btn").textContent = furiganaVisible ? "振 Furigana: On" : "振 Furigana: Off";
-        document.getElementById("furigana-toggle-btn").classList.toggle("active", !furiganaVisible);
-      }
+  function toggleFuriganaVisibility() {
+    furiganaVisible = !furiganaVisible;
+    updateFuriToggle();
+  }
 
-      async function copyResult() {
-        const out = document.getElementById("furi-out");
-        const text = out.innerText || out.textContent;
-        const btn = document.getElementById("copy-btn");
-        try {
-          await navigator.clipboard.writeText(text);
-          const orig = btn.textContent;
-          btn.textContent = "✓ Copied";
-          setTimeout(() => { btn.textContent = orig; }, 1500);
-        } catch (e) {
-          alert("Could not copy — please select and copy the text manually.");
-        }
-      }
+  function updateResultCount() {
+    $("result-count").textContent = resultCount === 1 ? t("count1") : t("count", { n: resultCount });
+  }
 
-      function showOutputToolbar() {
-        document.getElementById("output-toolbar").classList.add("visible");
-      }
-      function hideOutputToolbar() {
-        document.getElementById("output-toolbar").classList.remove("visible");
-      }
+  function flashButton(btn, icon, key, ms) {
+    const use = btn.querySelector("use"), span = btn.querySelector("span");
+    const origIcon = use.getAttribute("href"), origKey = span.dataset.i18n;
+    use.setAttribute("href", icon); span.textContent = t(key); btn.classList.add("ok");
+    setTimeout(() => { use.setAttribute("href", origIcon); span.textContent = t(origKey); btn.classList.remove("ok"); }, ms);
+  }
 
-      /* ── History ── */
-      const MAX_HISTORY = 3;
-      let history = []; // [{text, html, count, time}]
+  async function copyResult() {
+    const out = $("furi-out");
+    // Copy the plain text (without readings)
+    const clone = out.cloneNode(true);
+    clone.querySelectorAll("rt").forEach(rt => rt.remove());
+    try {
+      await navigator.clipboard.writeText(clone.textContent);
+      flashButton($("copy-btn"), "#i-check", "copied", 1500);
+    } catch (e) {
+      alert(t("copyFail"));
+    }
+  }
 
-      function timeLabel() {
-        const now = new Date();
-        return now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-      }
+  function showResult(html, count) {
+    $("furi-out").innerHTML = html || `<span class="furigana-placeholder">${t("noText")}</span>`;
+    resultCount = count;
+    updateResultCount();
+    const card = $("result-card");
+    const wasHidden = card.hidden;
+    card.hidden = false;
+    if (wasHidden) card.classList.add("enter");
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
-      function addToHistory(text, html, count) {
-        // Don't add duplicate of most recent
-        if (history.length > 0 && history[0].text === text) return;
-        history.unshift({ text, html, count, time: timeLabel() });
-        if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
-        renderHistory();
-      }
+  /* ── History ─────────────────────────────────────────────── */
+  const MAX_HISTORY = 3;
+  let history = []; // [{text, html, count, time}]
 
-      function renderHistory() {
-        const list = document.getElementById("history-list");
-        const badge = document.getElementById("history-count");
-        badge.textContent = history.length;
+  function timeLabel() {
+    return new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+  }
 
-        if (history.length === 0) {
-          list.innerHTML = '<div class="history-empty">Your last 3 processed paragraphs will appear here.</div>';
-          return;
-        }
+  function addToHistory(text, html, count) {
+    if (history.length > 0 && history[0].text === text) return;
+    history.unshift({ text, html, count, time: timeLabel() });
+    if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+    renderHistory();
+  }
 
-        list.innerHTML = history.map((item, i) => `
-          <div class="history-item" id="hitem-${i}">
-            <div class="history-item-header" onclick="toggleHistory(${i})">
-              <div class="history-item-meta">
-                <span class="history-num">#${history.length - i}</span>
-                <span class="history-preview">${item.text.slice(0, 60)}${item.text.length > 60 ? "…" : ""}</span>
-              </div>
-              <div class="history-actions">
-                <span class="history-time">${item.time}</span>
-                <button class="h-btn" onclick="event.stopPropagation(); reloadItem(${i})">↩ Load</button>
-                <button class="h-btn dl" onclick="event.stopPropagation(); downloadHistoryPDF(${i})">📄 PDF</button>
-              </div>
-            </div>
-            <div class="history-body" id="hbody-${i}">
-              ${item.html}
-              <div style="font-size:11px;color:var(--ink-ghost);margin-top:12px;line-height:1.4;">${item.count} reading${item.count!==1?"s":""} added · ${item.time}</div>
-            </div>
-          </div>
-        `).join("");
-      }
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
 
-      function toggleHistory(i) {
-        const body = document.getElementById(`hbody-${i}`);
-        body.classList.toggle("open");
-      }
+  function renderHistory() {
+    const list = $("history-list");
+    $("history-count").textContent = history.length;
+    $("clear-history").hidden = history.length === 0;
+    if (history.length === 0) {
+      list.innerHTML = `<p class="history-empty">${t("recentEmpty")}</p>`;
+      return;
+    }
+    list.innerHTML = history.map((item, i) => `
+      <div class="history-item">
+        <div class="history-text">
+          <span class="history-preview">${escapeHtml(item.text.slice(0, 70))}${item.text.length > 70 ? "…" : ""}</span>
+          <span class="history-meta">${item.time} · ${item.count === 1 ? t("count1") : t("count", { n: item.count })}</span>
+        </div>
+        <div class="history-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-h-open="${i}"><svg class="ic ic-sm"><use href="#i-open"/></svg><span>${t("open")}</span></button>
+          <button type="button" class="btn btn-ghost btn-sm btn-icon" data-h-pdf="${i}" aria-label="PDF" title="PDF"><svg class="ic ic-sm"><use href="#i-file"/></svg></button>
+        </div>
+      </div>`).join("");
+  }
 
-      function toggleHistorySection() {
-        document.getElementById("history-section").classList.toggle("open");
-      }
+  function toggleHistorySection() {
+    const sec = $("history-section");
+    const open = sec.classList.toggle("open");
+    $("history-toggle").setAttribute("aria-expanded", String(open));
+  }
 
-      function reloadItem(i) {
-        document.getElementById("furi-input").value = history[i].text;
-        document.getElementById("furi-out").innerHTML = history[i].html;
-        document.getElementById("furi-status").className = "status-line ok";
-        document.getElementById("furi-status").textContent = `✓ ${history[i].count} reading${history[i].count!==1?"s":""} added.`;
-        showOutputToolbar();
-        document.querySelector(".tool-card").scrollIntoView({ behavior: "smooth" });
-      }
+  function reloadItem(i) {
+    $("furi-input").value = history[i].text;
+    updateCharCount();
+    clearStatus();
+    showResult(history[i].html, history[i].count);
+  }
 
-      function clearHistory() {
-        history = [];
-        renderHistory();
-      }
+  function clearHistory() {
+    history = [];
+    renderHistory();
+  }
 
-      /* ── PDF Download ── */
-      /* Build an off-screen container with header + furigana content, render it
-         entirely via html2canvas, then place that single image into jsPDF.
-         No jsPDF text() calls → no Japanese font issues. */
+  /* ── PDF Download ── */
+  /* Build an off-screen container with header + furigana content, render it
+     entirely via html2canvas, then place that single image into jsPDF.
+     No jsPDF text() calls → no Japanese font issues. */
       async function renderToPDF(html, label, filename) {
         const date = new Date().toLocaleDateString("ja-JP");
 
@@ -367,75 +419,89 @@
         }
       }
 
-      async function downloadPDF(elementId, filenameBase) {
-        const btn = document.getElementById("dl-btn");
-        const origText = btn.innerHTML;
-        btn.innerHTML = "⏳ Generating…";
-        btn.disabled = true;
-        try {
-          const html = document.getElementById(elementId).innerHTML;
-          await renderToPDF(html, "ふりがな生成", filenameBase + "-furigana");
-        } catch(e) {
-          alert("PDF generation failed: " + e.message);
-        }
-        btn.innerHTML = origText;
-        btn.disabled = false;
-      }
+  async function withBusy(btn, fn) {
+    const span = btn.querySelector("span");
+    const orig = span ? span.textContent : "";
+    btn.disabled = true;
+    if (span) span.textContent = t("pdfWorking");
+    try { await fn(); }
+    catch (e) { alert(t("pdfFail") + e.message); }
+    if (span) span.textContent = orig;
+    btn.disabled = false;
+  }
 
-      async function downloadHistoryPDF(i) {
-        const item = history[i];
-        // Temporarily replace button text
-        const btns = document.querySelectorAll(`#hitem-${i} .h-btn.dl`);
-        const btn = btns[0];
-        const orig = btn ? btn.innerHTML : "";
-        if (btn) { btn.innerHTML = "⏳…"; btn.disabled = true; }
-        try {
-          await renderToPDF(item.html, `${item.time} · ${item.count} readings`, `furigana-${i + 1}`);
-        } catch(e) {
-          alert("PDF generation failed: " + e.message);
-        }
-        if (btn) { btn.innerHTML = orig; btn.disabled = false; }
-      }
+  function downloadPDF() {
+    return withBusy($("dl-btn"), () =>
+      renderToPDF($("furi-out").innerHTML, "ふりがな生成", "kanji-bridge-furigana"));
+  }
 
-      /* ── Main furigana function ── */
-      async function doFurigana() {
-        const text = document.getElementById("furi-input").value.trim();
-        if (!text) return;
-        const btn    = document.getElementById("furi-btn");
-        const status = document.getElementById("furi-status");
-        const out    = document.getElementById("furi-out");
-        const loader = document.getElementById("furi-loader");
+  function downloadHistoryPDF(i, btn) {
+    const item = history[i];
+    return withBusy(btn, () =>
+      renderToPDF(item.html, `${item.time} · ${item.count} readings`, `furigana-${i + 1}`));
+  }
 
-        btn.disabled = true;
-        hideOutputToolbar();
-        loader.classList.add("show");
-        status.className = "status-line loading";
+  /* ── Main furigana function ── */
+  let running = false;
+  async function doFurigana() {
+    if (running) return;
+    const text = $("furi-input").value.trim();
+    if (!text) { setStatus("warn", "stEmpty"); $("furi-input").focus(); return; }
 
-        try {
-          if (!workerReady) {
-            status.textContent = "Still loading dictionary, please wait…";
-            await workerReadyPromise;
-          }
-          status.textContent = "Analysing text…";
+    const btn = $("furi-btn"), loader = $("furi-loader");
+    running = true;
+    btn.disabled = true;
+    loader.classList.add("show");
 
-          const { html, count } = await tokenizeAsync(text);
+    try {
+      if (dictState === "error") throw new Error(t("dictError"));
+      if (dictState !== "ready") { setStatus("loading", "stWaiting"); await workerReadyPromise; }
+      setStatus("loading", "stWorking");
+      const { html, count } = await tokenizeAsync(text);
+      clearStatus();
+      showResult(html, count);
+      addToHistory(text, html, count);
+    } catch (e) {
+      setStatus("error", "stError", e.message);
+    }
 
-          out.innerHTML = html || '<span class="furigana-placeholder">No text to display.</span>';
-          status.className = "status-line ok";
-          status.textContent = `✓ Done — ${count} reading${count !== 1 ? "s" : ""} added.`;
-          showOutputToolbar();
-          addToHistory(text, html, count);
-        } catch(e) {
-          status.className = "status-line error";
-          status.textContent = "✗ Error: " + e.message;
-          out.innerHTML = '<span class="furigana-placeholder">Failed. Please check your internet connection.</span>';
-        }
+    loader.classList.remove("show");
+    btn.disabled = false;
+    running = false;
+  }
 
-        loader.classList.remove("show");
-        btn.disabled = false;
-      }
+  /* ── Wire up ─────────────────────────────────────────────── */
+  window.addEventListener("DOMContentLoaded", () => {
+    $("app-version").textContent = typeof APP_VERSION !== "undefined" ? APP_VERSION : "";
+    renderChips();
+    applyLang();
+    worker.postMessage({ type: "init" });
 
-      function setEx(txt) {
-        document.getElementById("furi-input").value = txt;
-        document.querySelector(".tool-card").scrollIntoView({ behavior: "smooth" });
-      }
+    document.querySelectorAll("[data-lang]").forEach(b => b.addEventListener("click", () => setLang(b.dataset.lang)));
+    $("chips").addEventListener("click", e => { const c = e.target.closest("[data-ex]"); if (c) setEx(+c.dataset.ex); });
+
+    const input = $("furi-input");
+    input.addEventListener("input", () => { updateCharCount(); if (lastStatusKey === "stEmpty") clearStatus(); });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); doFurigana(); }
+    });
+    $("clear-input").addEventListener("click", () => { input.value = ""; updateCharCount(); clearStatus(); input.focus(); });
+
+    $("furi-btn").addEventListener("click", doFurigana);
+    $("furigana-toggle-btn").addEventListener("click", toggleFuriganaVisibility);
+    $("font-down").addEventListener("click", () => changeFontSize(-1));
+    $("font-up").addEventListener("click", () => changeFontSize(1));
+    $("copy-btn").addEventListener("click", copyResult);
+    $("dl-btn").addEventListener("click", downloadPDF);
+
+    $("history-toggle").addEventListener("click", toggleHistorySection);
+    $("clear-history").addEventListener("click", clearHistory);
+    $("history-list").addEventListener("click", e => {
+      const o = e.target.closest("[data-h-open]"); if (o) return reloadItem(+o.dataset.hOpen);
+      const p = e.target.closest("[data-h-pdf]"); if (p) return downloadHistoryPDF(+p.dataset.hPdf, p);
+    });
+
+    // Show the Ctrl/⌘ hint matching the platform
+    if (/Mac|iPhone|iPad/.test(navigator.platform || "")) document.querySelector(".run-kbd").textContent = "⌘ + Enter";
+  });
+})();
