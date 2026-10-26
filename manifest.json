@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "Kanji Bridge 漢字ブリッジ by AkihiroLabs",
+  "short_name": "Kanji Bridge",
+  "description": "Paste Japanese text and get hiragana furigana above every kanji.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f7fa",
+  "theme_color": "#1E3A8A",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -3,6 +3,12 @@
 All notable changes to **Kanji Bridge 漢字ブリッジ** are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] — 2026-10-26
+
+- **Installable app (PWA).** An *Install* button appears in the top bar when your browser supports it.
+- **Dictionary is cached** — the ~7MB Japanese dictionary downloads once, then loads instantly and works offline.
+- Now hosted on Cloudflare at **https://kanji.akihirolabs.com** (moved from GitHub Pages).
+
 ## [1.2.0] — 2026-10-01
 
 - Redesigned the UI for a simpler, tool-first layout: dropped the hero section and feature cards, so the furigana tool is visible immediately below a one-line intro.
