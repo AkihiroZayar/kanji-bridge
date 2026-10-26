@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.0-1E3A8A" alt="version 1.3.0">
+  <img src="https://img.shields.io/badge/version-1.4.0-1E3A8A" alt="version 1.4.0">
   <img src="https://img.shields.io/badge/vanilla-JavaScript-00A8CC" alt="Vanilla JS">
   <img src="https://img.shields.io/badge/powered%20by-Kuromoji-1E3A8A" alt="Kuromoji">
 </p>
@@ -20,7 +20,8 @@
 
 - **Furigana generator** — hiragana readings above each kanji, powered by the Kuromoji morphological analyzer
 - **Works on any Japanese text** — paste a sentence, paragraph or article
-- **Example texts** — one-click samples (server settings, cloud, machine learning, security…)
+- **Example texts** — one-click samples grouped by JLPT level (N5–N1)
+- **Trilingual UI** — English, 日本語 and မြန်မာ
 - **PDF export** — download your text with furigana as a PDF
 - **History** — your last paragraphs are saved and can be reloaded or exported
 - **Free** — no account, no limits
@@ -43,6 +44,7 @@ kanji-bridge/
 │   └── style.css     # Styles
 ├── js/
 │   ├── version.js    # APP_VERSION
+│   ├── i18n.js       # UI strings (EN / JA / MY) + example texts
 │   └── app.js        # Tokenizer, furigana, history, PDF export
 ├── app-icon.png        # App logo (README, 512px)
 ├── favicon.png · apple-touch-icon.png · icon-192.png · icon-512.png
@@ -66,7 +68,7 @@ This project uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH
 - The version lives in **`js/version.js`** (`APP_VERSION`).
 - To release: bump the version, add an entry to [`CHANGELOG.md`](CHANGELOG.md), then create a GitHub Release tagged `vX.Y.Z`.
 
-Current version: **v1.2.0** — see the [changelog](CHANGELOG.md).
+Current version: **v1.4.0** — see the [changelog](CHANGELOG.md).
 
 ## 💬 Community
 
