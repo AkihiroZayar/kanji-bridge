@@ -3,6 +3,19 @@
 All notable changes to **Kanji Bridge 漢字ブリッジ** are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] — 2026-10-26
+
+- **Clearer, step-by-step UI** built for general Japanese learners: ① paste text → ② add furigana → ③ result.
+- **Hero shows what furigana is** with a live sample sentence (日本語を勉強するのは楽しい).
+- **New example texts by JLPT level** (N5–N1): self-introduction, weather, shopping, diary, station announcement, work email, news, novel — replacing the IT-only examples.
+- **No more blocking loading screen** — the dictionary loads in the background with a small progress bar, and you can type straight away.
+- **Result card appears only when there is a result**, styled like paper, with Hide/Show furigana, text size, Copy (plain text) and Save PDF.
+- **Language switch: English / 日本語 / မြန်မာ** (remembered on this device; new `js/i18n.js`).
+- App logo now shown in the header and footer; emoji replaced with line icons.
+- Ctrl/⌘ + Enter adds furigana; character counter and Clear button on the input.
+- Recent texts redesigned as a simple list with Open and PDF buttons.
+- Service worker cache bumped to `kanji-bridge-v2`.
+
 ## [1.3.0] — 2026-10-26
 
 - **Installable app (PWA).** An *Install* button appears in the top bar when your browser supports it.

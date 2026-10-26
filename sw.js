@@ -2,14 +2,16 @@
  * AkihiroLabs — Kanji Bridge — service worker
  * Bump CACHE whenever you change files so installed apps pick up the update.
  */
-const CACHE = 'kanji-bridge-v1';
+const CACHE = 'kanji-bridge-v2';
 const SHELL = [
   './',
   './index.html',
   './css/style.css',
   './js/version.js',
+  './js/i18n.js',
   './js/app.js',
   './js/pwa.js',
+  './app-icon.png',
   './favicon.png',
   './apple-touch-icon.png',
   './icon-192.png',
