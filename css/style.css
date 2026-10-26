@@ -170,3 +170,7 @@ footer p { margin-top: 6px; max-width: 540px; margin-left: auto; margin-right: a
   .history-preview { max-width: 150px; }
   .output-toolbar { justify-content: flex-start; }
 }
+
+/* Install button (shown only when the browser offers install) */
+.nav-right { display: flex; align-items: center; gap: 10px; }
+.install-btn[hidden] { display: none; }
